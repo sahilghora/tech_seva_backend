@@ -1,75 +1,52 @@
-# services/image_colorization/router.py
 from fastapi import APIRouter, UploadFile, File, HTTPException
 import os, uuid, shutil
 from pathlib import Path
 import numpy as np
 import cv2 as cv
 
+from utils.model_downloader import download_model
+
 router = APIRouter()
 
 # project root (backend/)
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 SERVICE_DIR = Path(__file__).resolve().parent
-MODELS_DIR = SERVICE_DIR / "models"
+
+# Runtime dirs
 UPLOADS_DIR = PROJECT_ROOT / "uploads"
 RESULTS_DIR = PROJECT_ROOT / "results"
 
 UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
 RESULTS_DIR.mkdir(parents=True, exist_ok=True)
 
-# Load colorization model (Caffe)
-pts_path = str(MODELS_DIR / "pts_in_hull.npy")
-prototxt_path = str(MODELS_DIR / "colorization_deploy_v2.prototxt")
-caffemodel_path = str(MODELS_DIR / "colorization_release_v2.caffemodel")
+# ===================== MODEL SETUP =====================
 
-# load network safely
-numpy_file = np.load(pts_path)
-net_color = cv.dnn.readNetFromCaffe(prototxt_path, caffemodel_path)
-numpy_file = numpy_file.transpose().reshape(2, 313, 1, 1)
-net_color.getLayer(net_color.getLayerId('class8_ab')).blobs = [numpy_file.astype(np.float32)]
-net_color.getLayer(net_color.getLayerId('conv8_313_rh')).blobs = [np.full([1, 313], 2.606, np.float32)]
+# Global models directory (gitignored)
+MODEL_DIR = PROJECT_ROOT / "models" / "image_colorization"
+MODEL_DIR.mkdir(parents=True, exist_ok=True)
 
-def colorize_image_file(input_path: str, output_path: str) -> None:
-    frame = cv.imread(input_path)
-    if frame is None:
-        raise ValueError("Could not read input image.")
+# Google Drive FILE ID (CAFFE MODEL ONLY)
+DRIVE_FILE_ID = "1sJ1Rdi1fLNHWC-udvd70FT5WSiL_SON2"
 
-    rgb_img = (frame[..., ::-1].astype(np.float32) / 255.0)
-    lab_img = cv.cvtColor(rgb_img, cv.COLOR_RGB2Lab)
-    l_channel = lab_img[:, :, 0]
-    l_rs = cv.resize(l_channel, (224, 224))
-    l_rs -= 50
+CAFFEMODEL_PATH = MODEL_DIR / "colorization_release_v2.caffemodel"
 
-    net_color.setInput(cv.dnn.blobFromImage(l_rs))
-    ab = net_color.forward()[0].transpose((1, 2, 0))
-    ab_us = cv.resize(ab, (frame.shape[1], frame.shape[0]))
-    lab_out = np.concatenate((l_channel[:, :, np.newaxis], ab_us), axis=2)
-    bgr_out = np.clip(cv.cvtColor(lab_out, cv.COLOR_Lab2BGR), 0, 1)
+# Download model if missing
+download_model(DRIVE_FILE_ID, str(CAFFEMODEL_PATH))
 
-    cv.imwrite(output_path, (bgr_out * 255).astype(np.uint8))
+# Local small files (keep in repo)
+PTS_PATH = SERVICE_DIR / "models" / "pts_in_hull.npy"
+PROTOTXT_PATH = SERVICE_DIR / "models" / "colorization_deploy_v2.prototxt"
 
-@router.post("/predict")
-async def predict(file: UploadFile = File(...)):
-    if not file.content_type.startswith("image/"):
-        raise HTTPException(status_code=400, detail="Upload an image file.")
+# ===================== LOAD NETWORK =====================
 
-    ext = os.path.splitext(file.filename)[1] or ".jpg"
-    input_filename = f"{uuid.uuid4().hex}{ext}"
-    input_path = UPLOADS_DIR / input_filename
+pts = np.load(str(PTS_PATH))
+net_color = cv.dnn.readNetFromCaffe(
+    str(PROTOTXT_PATH),
+    str(CAFFEMODEL_PATH)
+)
 
-    with open(input_path, "wb") as f:
-        shutil.copyfileobj(file.file, f)
-
-    output_filename = f"{uuid.uuid4().hex}.png"
-    output_path = RESULTS_DIR / output_filename
-
-    try:
-        colorize_image_file(str(input_path), str(output_path))
-    except Exception as e:
-        # cleanup then raise
-        if input_path.exists():
-            input_path.unlink(missing_ok=True)
-        raise HTTPException(status_code=500, detail=f"Processing error: {e}")
-
-    # leave the output in results/ (main.py mounts it at /results)
-    return {"result_url": f"/results/{output_filename}"}
+pts = pts.transpose().reshape(2, 313, 1, 1)
+net_color.getLayer(net_color.getLayerId("class8_ab")).blobs = [pts.astype(np.float32)]
+net_color.getLayer(net_color.getLayerId("conv8_313_rh")).blobs = [
+    np.full([1, 313], 2.606, np.float32)
+]
