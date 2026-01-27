@@ -1,18 +1,27 @@
-# Python cache files
+# Virtual environment
+venv/
+.env
+
+# Python cache
 __pycache__/
 *.pyc
 
-# Virtual environment
-venv/
+# ML / DL models (VERY LARGE)
+*.h5
+*.pkl
+*.joblib
+*.pt
+*.pth
+*.onnx
+*.caffemodel
 
-# Uploads and results (optional folders you don’t want on GitHub)
+# Model folders (extra safety)
+models/
+services/**/models/
+
+# Uploads / generated data
 uploads/
-result/
 
-# Environment variables
-.env
-
-# Large model files
-services/image_colorization/models/colorization_release_v2.caffemodel
-services/diabetic_retinopathy/dr_model.h5
-services/house_price/models/house_price_model.pkl
+# OS files
+.DS_Store
+Thumbs.db
