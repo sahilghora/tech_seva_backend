@@ -11,3 +11,8 @@ result/
 
 # Environment variables
 .env
+
+# Large model files
+services/image_colorization/models/colorization_release_v2.caffemodel
+services/diabetic_retinopathy/dr_model.h5
+services/house_price/models/house_price_model.pkl
