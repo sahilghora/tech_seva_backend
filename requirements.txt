@@ -1,0 +1,22 @@
+fastapi
+uvicorn[standard]
+python-multipart
+python-dotenv
+
+numpy
+pandas
+scikit-learn
+joblib
+
+opencv-python
+Pillow
+
+tensorflow
+torch
+
+nltk
+
+catboost
+xgboost
+
+uvicorn main:app --reloaduvicorn main:app --reload

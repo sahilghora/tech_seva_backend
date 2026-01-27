@@ -1,0 +1,13 @@
+# Python cache files
+__pycache__/
+*.pyc
+
+# Virtual environment
+venv/
+
+# Uploads and results (optional folders you don’t want on GitHub)
+uploads/
+result/
+
+# Environment variables
+.env
