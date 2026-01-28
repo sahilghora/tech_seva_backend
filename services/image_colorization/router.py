@@ -5,19 +5,39 @@ import cv2 as cv
 
 router = APIRouter()
 
-MODEL_DIR = Path("models/image_colorization")
-CAFFEMODEL_PATH = MODEL_DIR / "colorization_release_v2.caffemodel"
+# Base directory of this service
 SERVICE_DIR = Path(__file__).resolve().parent
 
-# Local small files
-PTS_PATH = SERVICE_DIR / "models/pts_in_hull.npy"
-PROTOTXT_PATH = SERVICE_DIR / "models/colorization_deploy_v2.prototxt"
+# Correct absolute paths
+MODEL_DIR = SERVICE_DIR / "models"
+CAFFEMODEL_PATH = MODEL_DIR / "colorization_release_v2.caffemodel"
+PROTOTXT_PATH = MODEL_DIR / "colorization_deploy_v2.prototxt"
+PTS_PATH = MODEL_DIR / "pts_in_hull.npy"
 
-# Load network
-pts = np.load(str(PTS_PATH))
-net_color = cv.dnn.readNetFromCaffe(str(PROTOTXT_PATH), str(CAFFEMODEL_PATH))
-pts = pts.transpose().reshape(2, 313, 1, 1)
-net_color.getLayer(net_color.getLayerId("class8_ab")).blobs = [pts.astype(np.float32)]
-net_color.getLayer(net_color.getLayerId("conv8_313_rh")).blobs = [
-    np.full([1, 313], 2.606, np.float32)
-]
+net_color = None  # lazy-loaded model
+
+
+def load_model():
+    global net_color
+
+    if net_color is not None:
+        return net_color
+
+    if not CAFFEMODEL_PATH.exists():
+        raise RuntimeError(f"Missing model file: {CAFFEMODEL_PATH}")
+
+    pts = np.load(str(PTS_PATH))
+
+    net = cv.dnn.readNetFromCaffe(
+        str(PROTOTXT_PATH),
+        str(CAFFEMODEL_PATH)
+    )
+
+    pts = pts.transpose().reshape(2, 313, 1, 1)
+    net.getLayer(net.getLayerId("class8_ab")).blobs = [pts.astype(np.float32)]
+    net.getLayer(net.getLayerId("conv8_313_rh")).blobs = [
+        np.full([1, 313], 2.606, np.float32)
+    ]
+
+    net_color = net
+    return net
