@@ -71,8 +71,19 @@ async def colorize_image(file: UploadFile = File(...)):
 
         l_resized = cv.resize(l, (224, 224))
         l_resized = l_resized - 50
+        
+        blob = cv.dnn.blobFromImage(
+    l_resized,
+    scalefactor=1.0,
+    size=(224, 224),
+    mean=(50,),
+    swapRB=False,
+    crop=False
+)
+        net.setInput(blob)
+        
 
-        net.setInput(cv.dnn.blobFromImage(l_resized))
+        
         ab = net.forward()[0].transpose((1, 2, 0))
         ab = cv.resize(ab, (gray.shape[1], gray.shape[0]))
 
