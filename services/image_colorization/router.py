@@ -8,7 +8,7 @@ router = APIRouter()
 # Project root (backend/)
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
-# 🔧 FIXED PATHS (THIS IS THE ONLY CHANGE)
+# 🔧 FIXED PATHS
 SERVICE_MODEL_DIR = PROJECT_ROOT / "services" / "image_colorization" / "models"
 DOWNLOADED_MODEL_DIR = PROJECT_ROOT / "models" / "image_colorization"
 
@@ -37,10 +37,13 @@ def load_model():
         str(CAFFEMODEL_PATH)
     )
 
-    pts = pts.transpose().reshape(2, 313, 1, 1)
-    net.getLayer(net.getLayerId("class8_ab")).blobs = [pts.astype(np.float32)]
-    net.getLayer(net.getLayerId("conv8_313_rh")).blobs = [
-        np.full([1, 313], 2.606, np.float32)
+    # ✅ RENDER-SAFE BLOB ATTACHMENT (ONLY CHANGE)
+    class8_ab = net.getLayerId("class8_ab")
+    conv8_313_rh = net.getLayerId("conv8_313_rh")
+
+    net.getLayer(class8_ab).blobs = [pts.astype(np.float32)]
+    net.getLayer(conv8_313_rh).blobs = [
+        np.full((1, 313), 2.606, dtype="float32")
     ]
 
     net_color = net
