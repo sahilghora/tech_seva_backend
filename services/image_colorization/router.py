@@ -5,17 +5,16 @@ import cv2 as cv
 
 router = APIRouter()
 
-# Base directory of this service
-SERVICE_DIR = Path(__file__).resolve().parent
+# Project root (backend/)
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
-# Correct absolute paths
-MODEL_DIR = SERVICE_DIR / "models"
+# Model paths relative to project root
+MODEL_DIR = PROJECT_ROOT / "models" / "image_colorization"
 CAFFEMODEL_PATH = MODEL_DIR / "colorization_release_v2.caffemodel"
 PROTOTXT_PATH = MODEL_DIR / "colorization_deploy_v2.prototxt"
 PTS_PATH = MODEL_DIR / "pts_in_hull.npy"
 
 net_color = None  # lazy-loaded model
-
 
 def load_model():
     global net_color
@@ -23,8 +22,10 @@ def load_model():
     if net_color is not None:
         return net_color
 
-    if not CAFFEMODEL_PATH.exists():
-        raise RuntimeError(f"Missing model file: {CAFFEMODEL_PATH}")
+    # Check if all files exist
+    for file_path in [CAFFEMODEL_PATH, PROTOTXT_PATH, PTS_PATH]:
+        if not file_path.exists():
+            raise RuntimeError(f"Missing model file: {file_path}")
 
     pts = np.load(str(PTS_PATH))
 

@@ -3,7 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from pathlib import Path
 
-# 🔽 Import model downloader
+# 🔽 Model downloader
 from utils.model_downloader import download_all_models
 
 # 🔽 Import routers
@@ -15,31 +15,33 @@ from services.fraud_insurance.router import router as fraud_ins_router
 from services.phishing_email.router import router as phishing_router
 from services.diabetic_retinopathy.router import router as dr_router
 
-
 app = FastAPI(title="Unified ML Backend")
 
 # 🔽 Ensure runtime folders exist
 Path("results").mkdir(exist_ok=True)
 Path("models").mkdir(exist_ok=True)
 
-# 🔽 Download models ONCE at startup (SAFE)
+# 🔽 Download missing models safely at startup
 @app.on_event("startup")
 def startup_event():
-    download_all_models()
+    try:
+        download_all_models()
+    except Exception as e:
+        print(f"⚠️ Warning: Some models could not be downloaded: {e}")
 
-# 🔽 CORS
+# 🔽 CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # change later to frontend URL
+    allow_origins=["*"],  # change to your frontend URL later
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# 🔽 Serve result files
+# 🔽 Serve results folder
 app.mount("/results", StaticFiles(directory="results"), name="results")
 
-# 🔽 Register API routers
+# 🔽 Register routers
 app.include_router(colorize_router, prefix="/api/colorize", tags=["Image Colorization"])
 app.include_router(stock_router, prefix="/api/stocks", tags=["Stock Prediction"])
 app.include_router(house_router, prefix="/api/house", tags=["House Price"])

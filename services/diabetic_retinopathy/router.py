@@ -7,10 +7,25 @@ from .preprocess import preprocess_image
 
 router = APIRouter()
 
-MODEL_DIR = Path("models/diabetic_retinopathy")
+# Project root (backend/)
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+
+# Model paths relative to project root
+MODEL_DIR = PROJECT_ROOT / "models" / "diabetic_retinopathy"
 MODEL_PATH = MODEL_DIR / "dr_model.h5"
 
-model = tf.keras.models.load_model(str(MODEL_PATH))
+model = None  # lazy-loaded model
+
+def load_model():
+    global model
+    if model is not None:
+        return model
+
+    if not MODEL_PATH.exists():
+        raise RuntimeError(f"Missing model file: {MODEL_PATH}")
+
+    model = tf.keras.models.load_model(str(MODEL_PATH))
+    return model
 
 @router.post("/predict")
 async def predict(file: UploadFile = File(...)):
@@ -23,7 +38,7 @@ async def predict(file: UploadFile = File(...)):
 
     try:
         img = preprocess_image(str(temp_path))
-        prediction = model.predict(img)[0][0]
+        prediction = load_model().predict(img)[0][0]  # lazy-load model
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
     finally:
