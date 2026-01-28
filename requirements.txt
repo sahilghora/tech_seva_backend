@@ -15,6 +15,9 @@ tensorflow
 torch
 
 nltk
+lightgbm==4.3.0
+
+
 
 catboost
 xgboost
