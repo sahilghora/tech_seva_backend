@@ -1,18 +1,32 @@
+# utils/model_downloader.py
+
+import os
 from pathlib import Path
 import requests
 
-PROJECT_ROOT = Path(__file__).resolve().parents[1]
+PROJECT_ROOT = Path(__file__).resolve().parents[1]  # backend/
 
+# Google Drive direct download links
 MODEL_LINKS = {
-    "house_price": "https://drive.google.com/uc?export=download&id=16Y0dJwFAhfQBpGR1lV8HL5LRip-RzsgV",
-    "diabetic_retinopathy": "https://drive.google.com/uc?export=download&id=1EnbFeLFYPjKH7zSWr5z9PpB5A_rcjwpa",
-    "image_colorization": "https://drive.google.com/uc?export=download&id=1sJ1Rdi1fLNHWC-udvd70FT5WSiL_SON2",
+    "diabetic_retinopathy": "https://drive.google.com/uc?id=1EnbFeLFYPjKH7zSWr5z9PpB5A_rcjwpa",
+    "image_colorization": "https://drive.google.com/uc?id=1sJ1Rdi1fLNHWC-udvd70FT5WSiL_SON2",
+    "house_price_model": "https://drive.google.com/uc?id=16Y0dJwFAhfQBpGR1lV8HL5LRip-RzsgV",
+    "house_price_scaler": "https://drive.google.com/uc?id=YOUR_SCALER_FILE_ID"  # replace with actual
 }
 
-MODEL_PATHS = {
-    "house_price": PROJECT_ROOT / "services/house_price/models/house_price_model.pkl",
-    "diabetic_retinopathy": PROJECT_ROOT / "services/diabetic_retinopathy/dr_model.h5",
-    "image_colorization": PROJECT_ROOT / "services/image_colorization/models/colorization_release_v2.caffemodel",
+# Where to save the models
+MODEL_DIRS = {
+    "diabetic_retinopathy": PROJECT_ROOT / "models/diabetic_retinopathy",
+    "image_colorization": PROJECT_ROOT / "models/image_colorization",
+    "house_price_model": PROJECT_ROOT / "models/house_price",
+    "house_price_scaler": PROJECT_ROOT / "models/house_price",
+}
+
+MODEL_FILES = {
+    "diabetic_retinopathy": "dr_model.h5",
+    "image_colorization": "colorization_release_v2.caffemodel",
+    "house_price_model": "house_price_model.pkl",
+    "house_price_scaler": "scaler.pkl",
 }
 
 def download_file(url: str, dest: Path):
@@ -24,15 +38,13 @@ def download_file(url: str, dest: Path):
     print(f"Downloading {dest.name} ...")
     response = requests.get(url, stream=True)
     response.raise_for_status()
-
     with open(dest, "wb") as f:
         for chunk in response.iter_content(chunk_size=8192):
             f.write(chunk)
-
     print(f"Downloaded {dest.name}")
 
 def download_all_models():
-    for key in MODEL_LINKS:
-        download_file(MODEL_LINKS[key], MODEL_PATHS[key])
-
+    for key, url in MODEL_LINKS.items():
+        dest_file = MODEL_DIRS[key] / MODEL_FILES[key]
+        download_file(url, dest_file)
     print("All models downloaded successfully!")
