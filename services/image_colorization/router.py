@@ -16,6 +16,7 @@ PTS_PATH = MODEL_DIR / "pts_in_hull.npy"
 
 net_color = None  # lazy-loaded model
 
+
 def load_model():
     global net_color
 
@@ -41,4 +42,46 @@ def load_model():
     ]
 
     net_color = net
-    return net
+    return net_color
+
+
+@router.post("/predict")
+async def colorize_image(file: UploadFile = File(...)):
+    try:
+        net = load_model()
+
+        if not file.content_type.startswith("image/"):
+            raise HTTPException(status_code=400, detail="Upload an image file")
+
+        image_bytes = await file.read()
+        np_img = np.frombuffer(image_bytes, np.uint8)
+        gray = cv.imdecode(np_img, cv.IMREAD_GRAYSCALE)
+
+        if gray is None:
+            raise HTTPException(status_code=400, detail="Invalid image data")
+
+        # Convert to LAB
+        img_rgb = cv.cvtColor(gray, cv.COLOR_GRAY2RGB)
+        img_lab = cv.cvtColor(img_rgb, cv.COLOR_RGB2LAB)
+        l = img_lab[:, :, 0]
+
+        # Resize and normalize
+        l_resized = cv.resize(l, (224, 224))
+        l_resized = l_resized - 50
+
+        net.setInput(cv.dnn.blobFromImage(l_resized))
+        ab = net.forward()[0].transpose((1, 2, 0))
+        ab = cv.resize(ab, (gray.shape[1], gray.shape[0]))
+
+        lab_out = np.concatenate((l[:, :, np.newaxis], ab), axis=2)
+        bgr_out = cv.cvtColor(lab_out, cv.COLOR_LAB2BGR)
+        bgr_out = np.clip(bgr_out, 0, 1)
+
+        return {
+            "message": "Image colorized successfully",
+            "height": int(bgr_out.shape[0]),
+            "width": int(bgr_out.shape[1])
+        }
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
