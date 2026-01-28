@@ -5,10 +5,8 @@ import cv2 as cv
 
 router = APIRouter()
 
-# Project root (backend/)
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
-# 🔧 FIXED PATHS
 SERVICE_MODEL_DIR = PROJECT_ROOT / "services" / "image_colorization" / "models"
 DOWNLOADED_MODEL_DIR = PROJECT_ROOT / "models" / "image_colorization"
 
@@ -16,7 +14,7 @@ CAFFEMODEL_PATH = DOWNLOADED_MODEL_DIR / "colorization_release_v2.caffemodel"
 PROTOTXT_PATH = SERVICE_MODEL_DIR / "colorization_deploy_v2.prototxt"
 PTS_PATH = SERVICE_MODEL_DIR / "pts_in_hull.npy"
 
-net_color = None  # lazy-loaded model
+net_color = None
 
 
 def load_model():
@@ -25,10 +23,9 @@ def load_model():
     if net_color is not None:
         return net_color
 
-    # Check if all files exist
-    for file_path in [CAFFEMODEL_PATH, PROTOTXT_PATH, PTS_PATH]:
-        if not file_path.exists():
-            raise RuntimeError(f"Missing model file: {file_path}")
+    for f in [CAFFEMODEL_PATH, PROTOTXT_PATH, PTS_PATH]:
+        if not f.exists():
+            raise RuntimeError(f"Missing model file: {f}")
 
     pts = np.load(str(PTS_PATH))
 
@@ -37,13 +34,15 @@ def load_model():
         str(CAFFEMODEL_PATH)
     )
 
-    # ✅ RENDER-SAFE BLOB ATTACHMENT (ONLY CHANGE)
+    # ✅ FIXED BLOBS (THIS WAS YOUR BUG)
     class8_ab = net.getLayerId("class8_ab")
     conv8_313_rh = net.getLayerId("conv8_313_rh")
 
-    net.getLayer(class8_ab).blobs = [pts.astype(np.float32)]
+    pts = pts.transpose().reshape(2, 313, 1, 1)
+
+    net.getLayer(class8_ab).blobs = [pts.astype("float32")]
     net.getLayer(conv8_313_rh).blobs = [
-        np.full((1, 313), 2.606, dtype="float32")
+        np.full((1, 313, 1, 1), 2.606, dtype="float32")
     ]
 
     net_color = net
@@ -56,46 +55,39 @@ async def colorize_image(file: UploadFile = File(...)):
         net = load_model()
 
         if not file.content_type.startswith("image/"):
-            raise HTTPException(status_code=400, detail="Upload an image file")
+            raise HTTPException(400, "Upload a valid image")
 
         image_bytes = await file.read()
         np_img = np.frombuffer(image_bytes, np.uint8)
-        gray = cv.imdecode(np_img, cv.IMREAD_GRAYSCALE)
+        bgr = cv.imdecode(np_img, cv.IMREAD_COLOR)
 
-        if gray is None:
-            raise HTTPException(status_code=400, detail="Invalid image data")
+        if bgr is None:
+            raise HTTPException(400, "Invalid image")
 
-        img_rgb = cv.cvtColor(gray, cv.COLOR_GRAY2RGB)
+        h, w = bgr.shape[:2]
+
+        img_rgb = cv.cvtColor(bgr, cv.COLOR_BGR2RGB)
         img_lab = cv.cvtColor(img_rgb, cv.COLOR_RGB2LAB)
         l = img_lab[:, :, 0]
 
         l_resized = cv.resize(l, (224, 224))
         l_resized = l_resized - 50
-        
-        blob = cv.dnn.blobFromImage(
-    l_resized,
-    scalefactor=1.0,
-    size=(224, 224),
-    mean=(50,),
-    swapRB=False,
-    crop=False
-)
+
+        blob = cv.dnn.blobFromImage(l_resized)
         net.setInput(blob)
-        
 
-        
         ab = net.forward()[0].transpose((1, 2, 0))
-        ab = cv.resize(ab, (gray.shape[1], gray.shape[0]))
+        ab = cv.resize(ab, (w, h))
 
-        lab_out = np.concatenate((l[:, :, np.newaxis], ab), axis=2)
+        lab_out = np.concatenate((l[:, :, None], ab), axis=2)
         bgr_out = cv.cvtColor(lab_out, cv.COLOR_LAB2BGR)
         bgr_out = np.clip(bgr_out, 0, 1)
 
         return {
-            "message": "Image colorized successfully",
-            "height": int(bgr_out.shape[0]),
-            "width": int(bgr_out.shape[1])
+            "message": "Colorization successful",
+            "height": h,
+            "width": w
         }
 
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(500, str(e))
