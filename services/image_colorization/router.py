@@ -8,11 +8,13 @@ router = APIRouter()
 # Project root (backend/)
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
-# Model paths relative to project root
-MODEL_DIR = PROJECT_ROOT / "models" / "image_colorization"
-CAFFEMODEL_PATH = MODEL_DIR / "colorization_release_v2.caffemodel"
-PROTOTXT_PATH = MODEL_DIR / "colorization_deploy_v2.prototxt"
-PTS_PATH = MODEL_DIR / "pts_in_hull.npy"
+# 🔧 FIXED PATHS (THIS IS THE ONLY CHANGE)
+SERVICE_MODEL_DIR = PROJECT_ROOT / "services" / "image_colorization" / "models"
+DOWNLOADED_MODEL_DIR = PROJECT_ROOT / "models" / "image_colorization"
+
+CAFFEMODEL_PATH = DOWNLOADED_MODEL_DIR / "colorization_release_v2.caffemodel"
+PROTOTXT_PATH = SERVICE_MODEL_DIR / "colorization_deploy_v2.prototxt"
+PTS_PATH = SERVICE_MODEL_DIR / "pts_in_hull.npy"
 
 net_color = None  # lazy-loaded model
 
@@ -60,12 +62,10 @@ async def colorize_image(file: UploadFile = File(...)):
         if gray is None:
             raise HTTPException(status_code=400, detail="Invalid image data")
 
-        # Convert to LAB
         img_rgb = cv.cvtColor(gray, cv.COLOR_GRAY2RGB)
         img_lab = cv.cvtColor(img_rgb, cv.COLOR_RGB2LAB)
         l = img_lab[:, :, 0]
 
-        # Resize and normalize
         l_resized = cv.resize(l, (224, 224))
         l_resized = l_resized - 50
 
