@@ -6,7 +6,17 @@ from pathlib import Path
 # 🔽 Model downloader
 from utils.model_downloader import download_all_models
 
-# 🔽 Import routers
+# 🔽 Ensure runtime folders exist
+Path("results").mkdir(exist_ok=True)
+Path("models").mkdir(exist_ok=True)
+
+# 🔽 Download missing models safely BEFORE importing routers
+try:
+    download_all_models()
+except Exception as e:
+    print(f"⚠️ Warning: Some models could not be downloaded: {e}")
+
+# 🔽 Now import routers (safe because models exist)
 from services.image_colorization.router import router as colorize_router
 from services.stock_prediction.router import router as stock_router
 from services.house_price.router import router as house_router
@@ -16,18 +26,6 @@ from services.phishing_email.router import router as phishing_router
 from services.diabetic_retinopathy.router import router as dr_router
 
 app = FastAPI(title="Unified ML Backend")
-
-# 🔽 Ensure runtime folders exist
-Path("results").mkdir(exist_ok=True)
-Path("models").mkdir(exist_ok=True)
-
-# 🔽 Download missing models safely at startup
-@app.on_event("startup")
-def startup_event():
-    try:
-        download_all_models()
-    except Exception as e:
-        print(f"⚠️ Warning: Some models could not be downloaded: {e}")
 
 # 🔽 CORS middleware
 app.add_middleware(
